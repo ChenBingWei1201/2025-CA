@@ -8,20 +8,19 @@ int max(int a, int b) {
 }
 
 int main() {
-
 	for(int i = 1; i < n; i++) {
-	    for(int j = 0; j < i; j++) {
-	        if(arr[j] < arr[i]) {
-	            lis[i] = max(lis[i], lis[j] + 1);
-	        }
+	  for(int j = 0; j < i; j++) {
+	    if(arr[j] < arr[i]) {
+	      lis[i] = max(lis[i], lis[j] + 1);
 	    }
+	  }
 	}
 
 	int maximum = 0;
 	for(int i = 0; i < n; i++) {
-	    if(lis[i] > maximum) {
-	        maximum = lis[i];
-	    }
+	  if(lis[i] > maximum) {
+	    maximum = lis[i];
+	  }
 	}
 }
 ```
@@ -76,5 +75,4 @@ int main() {
 	findMax(n, lis);
 	return 0;
 }
-
 ```
