@@ -36,10 +36,6 @@ LIS:
     addi sp, sp, -4
     sw ra, 0(sp)
 
-    # Initialize all dp elements to 1
-    li t0, 0          # index
-    li t1, 1          # value 1
-
     # Outer loop: for(int i = 1; i < n; i++)
     li s0, 1          # i = 1
 outer_loop:
