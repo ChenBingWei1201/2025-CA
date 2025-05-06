@@ -3,10 +3,10 @@
 
 matrix_chain_multiplication:
 
-    // Your implementation here
+    # Your implementation here
 
 
 
-    // Return to main program after completion (Remember to store the return address at the beginning)
-    // jr ra
+    # Return to main program after completion (Remember to store the return address at the beginning)
+    # jr ra
 
