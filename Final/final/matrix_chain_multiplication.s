@@ -1,5 +1,5 @@
 .text
-.globl matrix_chain_multiplication
+.global matrix_chain_multiplication
 
 matrix_chain_multiplication:
 
