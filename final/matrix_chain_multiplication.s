@@ -29,13 +29,15 @@ matrix_chain_multiplication:
 # create m[1:n,1:n], just using n*n
 
 mul t0, a3,a3             # t0=n*n
-li a4, t0
-call malloc               # m adress in a4
+mv a0, t0
+call malloc               # m adress in a0
+mv a4, a0                 # move malloc result to a4
 
 # create s[1:n-1,2:n], just using n*n
 
-li a5, t0
-call malloc               # s adress in a5    
+mv a0, t0
+call malloc               # s adress in a0
+mv a5, a0                 # move malloc result to a5  
 
 
 # assume initial value if '0'
@@ -76,7 +78,7 @@ for_i:
     # t2=m[i,i]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s2    # i*n+i
-    muli t0, t0, 4
+    slli t0, t0, 2     # (i*n+i)*4
     add  t0, t0, a4    # m[i,i]->a4+4[n*i+i]
     lw   t2, 0(t0)     # t2=m[i,i]
     
@@ -84,23 +86,23 @@ for_i:
     addi t1, s2, 1     # i+1
     mul  t0, t1, a3    # (i+1)*n
     add  t0, t0, s4    # (i+1)*n+j
-    muli t0, t0, 4
+    slli t0, t0, 2     # ((i+1)*n+j)*4
     add  t0, t0, a4    # m[i,i]->a4+4[(i+1)*n+j]
     lw   t3, 0(t0)     # t3=m[i+1,j]
     
     
     # t4=P_i-1=row[i],keep using in k
-    muli t0, s2, 4    # 4*i
+    slli t0, s2, 2    # 4*i
     add  t0, t0, a1   # 4*i+a1
     lw   t4, 0(t0)    # t3=P_i-1
     
     # t5=P_i=col[i],
-    muli t0, s2, 4    # 4*i
+    slli t0, s2, 2    # 4*i
     add  t0, t0, a2   # 4*i+a2
     lw   t5, 0(t0)    # t3=P_i
     
     # t6=P_j=col[j],keep using in k
-    muli t0, s4, 4    # 4*j
+    slli t0, s4, 2    # 4*j
     add  t0, t0, a2   # 4*j+a2
     lw   t6, 0(t0)    # t3=P_j
 
@@ -115,7 +117,7 @@ for_i:
     #stored m[i,j]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s4    # i*n+j
-    muli t0, t0, 4
+    slli t0, t0, 2     # (i*n+j)*4
     add  t0, t0, a4    # m[i,j]->a4+4[n*i+j]
     sw   s5, 0(t0)     # s5->m[i,j]
     
@@ -130,7 +132,7 @@ for_k:
     # t2=m[i,k]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s3    # i*n+k
-    muli t0, t0, 4
+    slli t0, t0, 2     # (i*n+k)*4
     add  t0, t0, a4    # m[i,k]->a4+4[n*i+k]
     lw   t2, 0(t0)     # t2=m[i,k]
     
@@ -138,12 +140,12 @@ for_k:
     addi t1, s3, 1     # k+1
     mul  t0, t1, a3    # (k+1)*n
     add  t0, t0, s4    # (k+1)*n+j
-    muli t0, t0, 4
+    slli t0, t0, 2     # ((k+1)*n+j)*4
     add  t0, t0, a4    # m[i,i]->a4+4[(i+1)*n+j]
     lw   t3, 0(t0)     # t3=m[k+1,j]
 
     # t5=P_k=col[k],
-    muli t0, s3, 4    # 4*k
+    slli t0, s3, 2    # 4*k
     add  t0, t0, a2   # 4*k+a2
     lw   t5, 0(t0)    # t5=P_k
     
@@ -151,7 +153,7 @@ for_k:
     # load m[i,j] for compared (s6)
     mul  t0, s2, a3    # i*n
     add  t0, t0, s4    # i*n+j
-    muli t0, t0, 4
+    slli t0, t0, 2     # (i*n+j)*4
     add  t0, t0, a4    # m[i,j]->a4+4[n*i+j]
     lw   s6, 0(t0)     # s5->m[i,j]
     
@@ -189,4 +191,4 @@ continued_loop:
     
 # << end loop >>
 
-# << implement multiplication >>
+# << implement multiplication of s table >>
