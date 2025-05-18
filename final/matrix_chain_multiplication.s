@@ -29,31 +29,32 @@ matrix_chain_multiplication:
 # create m[1:n,1:n], just using n*n
 
 mul t0, a3,a3             # t0=n*n
-mv a0, t0
-call malloc               # m adress in a0
-mv a4, a0                 # move malloc result to a4
+mv a4, t0
+call malloc               # m adress in a4
 
 # create s[1:n-1,2:n], just using n*n
 
-mv a0, t0
-call malloc               # s adress in a0
-mv a5, a0                 # move malloc result to a5  
+mv a5, t0
+call malloc               # s adress in a5    
 
+#
 
 # assume initial value if '0'
 
 # << NOTE for variable >>
 
+# matrix base->'0'
 # l(s1): 2~n
-# i(s2): 1~n-l+1
+# i(s2): 0~n-l
 # k(s3): i~j-1
-# j(s4)
-
+# j(s4): j=i+l-1
+# s7: stored n-l+1 for # of loop i
+# change for base '0'
 
 # t5,t6,t7 
 # s5,s6,s7,.....for compute
-# s4=5,s6 in loop k
-# s7: stored n-l+1 for # of loop i
+# using s5,s6 in loop k
+
 
 # << loop >>
 
@@ -62,23 +63,22 @@ addi s1, zero,2    # initial l=2
 
 
 for_l:
-    addi s2, zero, 1                # initial i=1 
-    #compute n(a3) - l(s1)+1 for    # of loop i (s7)
-    addi s7, a3, 1
-    sub  s7, s7, s1
+    addi s2, zero,0                # initial i=0
+    # compute n(a3) - l(s1)+1 for loop i (s7)
+    sub  s7,a3,s1
 
 for_i:
 
     # s4: j=i+l-1
-    add  s4, s2, s1    # i+l
-    addi s4, s4,-1     # (i+l)-1
+    add  s4, s2,s1    # i+l
+    addi s4, s4,-1    # (i+l)-1
     
     # m[i,j]=inf,using initial m[i,j]=m[i,i]+m[i+1,j]+P_i-1 P_i P_j, k start from i+1 to j-1
     
     # t2=m[i,i]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s2    # i*n+i
-    slli t0, t0, 2     # (i*n+i)*4
+    slli t0, t0, 2
     add  t0, t0, a4    # m[i,i]->a4+4[n*i+i]
     lw   t2, 0(t0)     # t2=m[i,i]
     
@@ -86,7 +86,7 @@ for_i:
     addi t1, s2, 1     # i+1
     mul  t0, t1, a3    # (i+1)*n
     add  t0, t0, s4    # (i+1)*n+j
-    slli t0, t0, 2     # ((i+1)*n+j)*4
+    slli t0, t0, 2
     add  t0, t0, a4    # m[i,i]->a4+4[(i+1)*n+j]
     lw   t3, 0(t0)     # t3=m[i+1,j]
     
@@ -114,10 +114,15 @@ for_i:
     add s5, s5, t2    # m[i,i]+P_i-1 P_i P_j
     add s5, s5, t3    # m[i,i]+m[i+1,j]+P_i-1 P_i P_j
     
-    #stored m[i,j]
+    # stored m[i,j], s[i,j]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s4    # i*n+j
-    slli t0, t0, 2     # (i*n+j)*4
+    slli t0, t0, 2
+    
+    add  t0, t0, a5    # s[i,j]->a5+4[n*i+j]
+    sw   s2, 0(t0)     # stored k(s3)=i for s[i,j] 
+    
+    sub  t0, t0, a5    # 4[n*i+j]
     add  t0, t0, a4    # m[i,j]->a4+4[n*i+j]
     sw   s5, 0(t0)     # s5->m[i,j]
     
@@ -132,7 +137,7 @@ for_k:
     # t2=m[i,k]
     mul  t0, s2, a3    # i*n
     add  t0, t0, s3    # i*n+k
-    slli t0, t0, 2     # (i*n+k)*4
+    slli t0, t0, 2
     add  t0, t0, a4    # m[i,k]->a4+4[n*i+k]
     lw   t2, 0(t0)     # t2=m[i,k]
     
@@ -140,7 +145,7 @@ for_k:
     addi t1, s3, 1     # k+1
     mul  t0, t1, a3    # (k+1)*n
     add  t0, t0, s4    # (k+1)*n+j
-    slli t0, t0, 2     # ((k+1)*n+j)*4
+    slli t0, t0, 2
     add  t0, t0, a4    # m[i,i]->a4+4[(i+1)*n+j]
     lw   t3, 0(t0)     # t3=m[k+1,j]
 
@@ -150,24 +155,24 @@ for_k:
     lw   t5, 0(t0)    # t5=P_k
     
     
-    # load m[i,j] for compared (s6)
+    # load m[i,j] for compared (s5)
     mul  t0, s2, a3    # i*n
     add  t0, t0, s4    # i*n+j
-    slli t0, t0, 2     # (i*n+j)*4
+    slli t0, t0, 2
     add  t0, t0, a4    # m[i,j]->a4+4[n*i+j]
-    lw   s6, 0(t0)     # s5->m[i,j]
+    lw   s5, 0(t0)     # s5->m[i,j]
     
-    # comput new m[i,j]=m[i,k]+m[k+1,j]+P_i-1 P_k P_j (s5)
-    mul s5, t4, t5    # P_i-1 P_k
-    mul s5, s5, t6    # P_i-1 P_k P_j
-    add s5, s5, t2    # m[i,k]+P_i-1 P_k P_j
-    add s5, s5, t3    # m[i,i]+m[k+1,j]+P_i-1 P_k P_j
+    # comput new m[i,j]=m[i,k]+m[k+1,j]+P_i-1 P_k P_j (s6)
+    mul s6, t4, t5    # P_i-1 P_k
+    mul s6, s6, t6    # P_i-1 P_k P_j
+    add s6, s6, t2    # m[i,k]+P_i-1 P_k P_j
+    add s6, s6, t3    # m[i,i]+m[k+1,j]+P_i-1 P_k P_j
     
     # compared
-    bge s5, s6, continued_loop    # if s5>=s6 -> no change
+    bge s6, s5, continued_loop   # if s6>=s5 -> no change
     
     # stored m[i,j]
-    sw  s5, 0(t0)   # stored s5 for new m[i,j] , t0=m[i,j]->a4+4[n*i+j] (no change)
+    sw  s6, 0(t0)   # stored s5 for new m[i,j] , t0=m[i,j]->a4+4[n*i+j] (no change)
     
     # stored s[i,j]=k
     sub  t0, t0, a4    # 4[n*i+j]
@@ -183,12 +188,12 @@ continued_loop:
     
     # i
     addi s2, s2, 1        # i++
-    bge  s7, s2, for_i    # if s7(n(a3) - l(s1)+1)>=i, go back    (i=1~n(a3) - l(s1)+1)
+    bge  s7, s2, for_i    # if n(a3) - l(s1)>=i(s2), go back    (i=0~n(a3) - l(s1)+1)
     
     # l
     addi s1, s1, 1        # l++
-    bge  a3, s1, for_l    # if n(a3)>=l(s1), go back    (l=2~n(a3))
+    bge  a3, s1, for_l    # if n(a3)>=l(s1), go back    (l=1~n(a3)-1)
     
 # << end loop >>
 
-# << implement multiplication of s table >>
+# TODO: please finish else part (matrix chain multiplication with matrix m and s)
