@@ -1,0 +1,207 @@
+Computer Architecture
+Final Project: Matrix Chain Multiplication
+
+Overview
+- Given a sequence of matrices, implement assembly code to compute the matrix chain multiplication.
+- Your implementation will be scored based on its performance, which is determined by the number of cycles and cache size.
+
+Project Goal
+- Accelerate the function to achieve better performance 
+  - Increase hit rate of cache
+  - Use better algorithm (e.g. Dynamic Programming)
+- Performance Formula
+  - 𝑇𝑖𝑚𝑒 × log_2(𝑆𝑖𝑧𝑒_𝐿1_𝐼𝐶𝑎𝑐ℎ𝑒) + log_2(𝑆𝑖𝑧𝑒_𝐿1_𝐷𝐶𝑎𝑐ℎ𝑒) +1/2 log_2(𝑆𝑖𝑧𝑒_𝐿2_𝐶𝑎𝑐ℎ𝑒)
+  - Goal: minimize the performance formula
+
+Block Diagram
+main.cpp
+
+extern "C"
+{
+    int *matrix_chain_multiplication(int **matrices, int *rows, int *cols, int count);
+}
+
+-> testcase.txt -> int** matrices, int* rows, int* cols, int count -> matrix_chain_multiplication.s int* ret -> answer.txt ->
+
+Input / Output
+
+Type Port Reg I/O Description
+int** matrices x10 (a0) I An array storing the addresses of all matrices*.
+int* rows x11 (a1) I An array storing the row size of each matrix.
+int* cols x12 (a2) I An array storing the column size of each matrix.
+int count x13 (a3) I An integer representing the number of matrices.
+int* ret x10 (a0) O An address storing the result matrix* after computation.
+
+- All matrices are stored in row-major order.
+
+- In the RISC-V calling convention
+  - Function arguments are passed starting from the a0 register
+  - Return value is stored in the a0 register too
+
+Input
+
+Example:
+[[23, 7], [16,11]] x [[2, 13, 5], [8, 26, 18]] x [[9, 15, 17], [31, 28, 4], [14, 27, 21]]
+
+2×2 matrix 2×3 matrix 3×3 matrix
+
+Addr Value
+matrices 0x1000
+
+Addr Value
+0x1000 0x2000
+0x1004 0x2100
+0x1008 0x2200
+
+Addr Value
+0x2000 23
+0x2004 7
+0x2008 16
+0x200c 11
+
+Addr Value
+rows 0x3000
+
+Addr Value
+0x3000 2
+0x3004 2
+0x3008 3
+
+Addr Value
+cols 0x4000
+
+Addr Value
+0x4000 2
+0x4004 3
+0x4008 3
+
+Addr Value
+count 3
+
+Output
+Example:
+[[23, 7], [16,11]] x [[2, 13, 5], [8, 26, 18]] x [[9, 15, 17], [31, 28, 4], [14, 27, 21]] = [[19203, 21505, 8719], [20286, 23138, 9854]] (result)
+
+Addr Value
+ret 0x9000 <- You need to store this value in a0 before return
+
+Addr Value
+0x9000 19203
+0x9004 21505
+0x9008 8719
+0x900c 20286
+0x9010 23138
+0x9014 9854
+
+RISC-V Calling Convention
+
+- Input / output start from a0
+- Return address is store in ra
+- s0 needs to be saved and restored across function call
+
+Register 	ABI Name 	Description 	Saver
+x0 	zero 	Hard-wired zero 	-
+x1 	ra 	Return address 	Caller
+x2 	sp 	Stack pointer 	Callee
+x3 	gp 	Global pointer 	-
+x4 	tp 	Thread pointer 	-
+x5 	t0 	Temporary/alternate link register 	Caller
+x6-7 	t1-2 	Temporaries 	Caller
+x8 	s0/fp 	Saved regsiter/frame pointer 	Callee
+x9 	s1 	Saved register 	Callee
+x10-11 	a0-1 	Function arguments/return values 	Caller
+x12-17 	a2-7 	Function arguments 	Caller
+x18-27 	s2-11 	Saved registers 	Callee
+x28-31 	t3-6 	Temporaries 	Caller
+
+Memory Allocation
+
+- Allocation of memory for storing matrices is needed in this project
+  - At least for the result matrix of matrix chain multiplication
+- You can allocate memory by call malloc as example below:
+  - Allocate 10 bytes memory space in this example
+    ```assembly
+    li a0, 10
+    call malloc
+    sw t0, 0(a0)
+    ```
+  - Value in register a0, a1, a2, a3 will be overwritten after this function call
+- Release memory space by call free
+
+Dynamic Programming
+
+- When multiplying a k×m matrix with an m×n matrix
+  - k×m×n multiply-add operations are required
+  - Dynamic programming to find the optimal multiplication order
+
+Provided Files
+Files Description
+Files you should not modify
+main.cpp Main program
+final_config.py Gem5 configuration file
+testbench.py Python file for checking the correctness
+score.py Python file for calculate performance score
+testcase/public/testcase_xx.txt Public testing data
+golden/public/golden_xx.txt Public golden data
+Makefile Including make commands used in final
+Files you need to modify
+matrix_chain_multiplication.s Main design file
+gem5_args.conf Gem5 argument file, including cache setting
+
+About final_config.py
+- Currently doesn’t including config for L2 cache
+  - Implementation of L2 cache is part of HW3 (upcoming)
+- After HW3 due, final_config.py with L2 cache config will be released
+  - Please be aware of the upcoming updates to the final project file
+  - Your final result should be simulated by latest version of final_config.py
+
+Design & Simulation Flow (1)
+- Start docker
+  `docker start –i 1132_CA`
+- Create folder for final
+  `mkdir workspace/final`
+  `cd workspace/final`
+- Put all provided file in workspace/final
+- Complete the design in `matrix_chain_multiplication.s`
+
+Design & Simulation Flow (2)
+- Modify the cache setting in gem5_args.conf
+  - Settings you can change (mark in red):
+  - GEM5_ARGS= --l1i_size 4kB --l1i_assoc 2 --l1d_size 4kB --
+l1d_assoc 2 --l2_size 16kB --l2_assoc 4
+
+- Compile main.cpp with matrix_chain_multiplication.s
+  `make g++_final`
+
+Design & Simulation Flow (3)
+
+- Run simulation with all testcases or single testcase
+  - This step might take a few minutes
+    `make gem5_public_all`
+    `make gem5_public ARGS=P0/P1/P2/P3/P4/P5`
+- Checking if generated answer.txt match golden.txt
+  `make testbench_public`
+- Compute performance score based on performance formula
+  - Read content from m5out/config.json and m5out/out_exec.txt
+    `make score_public`
+
+Test Cases Information
+- Constraints:
+  - Maximum number of matrices (N): 16
+  - Maximum dimension of matrices (D): 64
+  - Maximum value of matrices (V): 128
+- Public Test Cases:
+  - 00: N = 3, D = 3, V = 10
+  - 01: N = 3, D = 5, V = 10
+  - 02: N = 4, D = 6, V = 16
+  - 03: N = 5, D = 10, V = 20
+  - 04: N = 6, D = 8, V = 12
+  - 05: public performance test
+
+Reference
+- Matrix-chain multiplication
+  - Matrix Chain Multiplication | GeeksforGeeks
+- Dynamic Programming
+  - Dynamic Programming or DP | GeeksforGeeks
+- Tiled matrix multiplication
+  - penny-xu.github.io/blog/tiled-matrix-multiplication/
