@@ -106,10 +106,40 @@ system.l1dcache = Cache(
 system.cpu.icache_port = system.l1icache.cpu_side
 system.cpu.dcache_port = system.l1dcache.cpu_side
 
+##############################################
+###########    <YOUR PROGRAM>    #############
+##############################################
 # Connect L1 caches to L2 bus
-system.l1icache.mem_side = system.membus.cpu_side_ports
-system.l1dcache.mem_side = system.membus.cpu_side_ports
+# TODO: modify interconnection
+# system.l1icache.mem_side = system.membus.cpu_side_ports
+# system.l1dcache.mem_side = system.membus.cpu_side_ports
 
+# Create a (small) L2 bus to connect L1s and L2
+system.l2bus = L2XBar()
+
+# Modified interconnection (L1 to L2 bus):
+system.l1icache.mem_side = system.l2bus.cpu_side_ports
+system.l1dcache.mem_side = system.l2bus.cpu_side_ports
+
+# -- L2 Unified Cache --
+system.l2cache = Cache(
+    clk_domain = system.clk_domain,
+    size = args.l2_size,
+    assoc = args.l2_assoc,
+    tag_latency = args.l2_tag_latency,
+    data_latency = args.l2_data_latency,
+    response_latency = args.l2_response_latency,
+    mshrs = 20,
+    tgts_per_mshr = 12
+)
+
+# Connect L2 cache to L2 bus & membus
+system.l2cache.cpu_side = system.l2bus.mem_side_ports
+system.l2cache.mem_side = system.membus.cpu_side_ports
+
+#
+# -----------------------------------------
+#
 
 # Interrupt controller for the CPU
 system.cpu.createInterruptController()
