@@ -2,7 +2,11 @@ import re
 import os
 import json
 import math
+import sys
 from colorama import Fore, Style, init
+
+# Only use color if output is a terminal
+init(strip=not sys.stdout.isatty())
 
 def read_json_file(filename):
     with open(filename, 'r') as f:
