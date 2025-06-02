@@ -24,29 +24,18 @@ matrix_chain_multiplication:
     mv s2, a2        # cols
     mv s3, a3        # count
     
-    # Handle trivial case: single matrix
-    li t0, 1
-    beq s3, t0, single_matrix_case
-    
-    # PHASE 1: Allocate M and S tables for DP computation
-    # M[i][j] stores minimum scalar multiplications for chain i..j
-    # S[i][j] stores optimal split point for chain i..j
-    
+    # OPTIMIZATION 1: Single allocation for M and S tables
     mul t0, s3, s3   # count * count
-    slli t0, t0, 2   # * 4 (size in bytes)
-    
-    # Allocate M table
-    mv a0, t0
+    slli t1, t0, 3   # * 8 (for both M and S tables)
+    mv a0, t1
     call malloc
     mv s4, a0        # s4 = M table
     
-    # Allocate S table
-    mv a0, t0
-    call malloc
-    mv s5, a0        # s5 = S table
+    # S table starts after M table
+    slli t0, t0, 2   # count * count * 4
+    add s5, s4, t0   # s5 = S table
     
-    # PHASE 2: Bottom-up DP computation (Matrix-Chain-Order algorithm)
-    # Initialize M[i][i] = 0 for all i
+    # PHASE 1: DP computation - Initialize M[i][i] = 0
     li t0, 0         # i = 0
 init_diagonal:
     mul t1, t0, s3   # i * count
@@ -58,7 +47,7 @@ init_diagonal:
     addi t0, t0, 1   # i++
     blt t0, s3, init_diagonal
     
-    # Main DP loop: process chains of increasing length
+    # Main DP loop
     li s6, 2         # l = 2 (chain length)
     
 for_l:
@@ -69,7 +58,7 @@ for_i:
     add s8, s7, s6   # i + l
     addi s8, s8, -1  # j = i + l - 1
     
-    # Initialize M[i][j] to infinity (use large value)
+    # Initialize M[i][j] to infinity
     li t0, 0x7FFFFFFF
     mul t1, s7, s3   # i * count
     add t1, t1, s8   # i * count + j
@@ -77,69 +66,68 @@ for_i:
     add t1, s4, t1   # &M[i][j]
     sw t0, 0(t1)     # M[i][j] = infinity
     
-    # Try all possible split points k = i to j-1
-    mv s9, s7        # k = i
+    # OPTIMIZATION 2: Cache dimension values
+    slli t1, s7, 2   # i * 4
+    add t1, s1, t1   # &rows[i]
+    lw s9, 0(t1)     # s9 = rows[i] (cache for k loop)
+    
+    slli t1, s8, 2   # j * 4
+    add t1, s2, t1   # &cols[j]
+    lw s10, 0(t1)    # s10 = cols[j] (cache for k loop)
+    
+    # Try all split points k = i to j-1
+    mv s11, s7       # k = i
     
 for_k:
     # Calculate cost: M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
-    
+
     # Get M[i][k]
     mul t0, s7, s3   # i * count
-    add t0, t0, s9   # i * count + k
+    add t0, t0, s11  # i * count + k
     slli t0, t0, 2   # * 4
     add t0, s4, t0   # &M[i][k]
     lw t1, 0(t0)     # t1 = M[i][k]
     
     # Get M[k+1][j]
-    addi t2, s9, 1   # k + 1
+    addi t2, s11, 1  # k + 1
     mul t0, t2, s3   # (k+1) * count
     add t0, t0, s8   # (k+1) * count + j
     slli t0, t0, 2   # * 4
     add t0, s4, t0   # &M[k+1][j]
     lw t2, 0(t0)     # t2 = M[k+1][j]
     
-    # Get dimensions: rows[i] * cols[k] * cols[j]
-    slli t0, s7, 2   # i * 4
-    add t0, s1, t0   # &rows[i]
-    lw t3, 0(t0)     # t3 = rows[i]
-    
-    slli t0, s9, 2   # k * 4
+    # Get cols[k]
+    slli t0, s11, 2  # k * 4
     add t0, s2, t0   # &cols[k]
-    lw t4, 0(t0)     # t4 = cols[k]
+    lw t3, 0(t0)     # t3 = cols[k]
     
-    slli t0, s8, 2   # j * 4
-    add t0, s2, t0   # &cols[j]
-    lw t5, 0(t0)     # t5 = cols[j]
+    # Calculate cost: M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
+    mul t4, s9, t3   # rows[i] * cols[k] (using cached rows[i])
+    mul t4, t4, s10  # rows[i] * cols[k] * cols[j] (using cached cols[j])
+    add t4, t4, t1   # + M[i][k]
+    add t4, t4, t2   # + M[k+1][j]
     
-    # Calculate multiplication cost: rows[i] * cols[k] * cols[j]
-    mul t6, t3, t4   # rows[i] * cols[k]
-    mul t6, t6, t5   # rows[i] * cols[k] * cols[j]
-    
-    # Total cost = M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
-    add t6, t6, t1   # + M[i][k]
-    add t6, t6, t2   # + M[k+1][j]
-    
-    # Compare with current best cost M[i][j]
+    # Compare with current M[i][j]
     mul t0, s7, s3   # i * count
     add t0, t0, s8   # i * count + j
     slli t0, t0, 2   # * 4
     add t0, s4, t0   # &M[i][j]
-    lw t1, 0(t0)     # t1 = current M[i][j] (reuse t1)
+    lw t1, 0(t0)     # current M[i][j]
     
-    # If new cost is better, update M[i][j] and S[i][j]
-    bge t6, t1, skip_update
+    # If new cost is better, update
+    bge t4, t1, skip_update
     
-    # Update M[i][j] = new cost
-    sw t6, 0(t0)
+    # Update M[i][j]
+    sw t4, 0(t0)
     
-    # Update S[i][j] = k
+    # Update S[i][j]
     sub t0, t0, s4   # offset from M table
     add t0, s5, t0   # &S[i][j]
-    sw s9, 0(t0)     # S[i][j] = k
+    sw s11, 0(t0)    # S[i][j] = k
     
 skip_update:
-    addi s9, s9, 1   # k++
-    blt s9, s8, for_k
+    addi s11, s11, 1 # k++
+    blt s11, s8, for_k
     
     # Continue i loop
     addi s7, s7, 1   # i++
@@ -149,17 +137,16 @@ skip_update:
     
     # Continue length loop
     addi s6, s6, 1   # l++
-    ble s6, s3, for_l # if l <= count, continue the loop
+    ble s6, s3, for_l
     
-    # PHASE 3: Allocate result table for bottom-up multiplication
-    # result[i][j] stores the matrix product for chain i..j
+    # PHASE 2: Allocate result table
     mul t0, s3, s3   # count * count
-    slli t0, t0, 2   # * 4 (each entry is a matrix pointer)
+    slli t0, t0, 2   # * 4
     mv a0, t0
     call malloc
     mv s6, a0        # s6 = result table
     
-    # PHASE 4: Initialize result table with single matrices
+    # Initialize result table with single matrices
     li t0, 0         # i = 0
 init_result_table:
     # result[i][i] = matrices[i]
@@ -176,8 +163,8 @@ init_result_table:
     addi t0, t0, 1   # i++
     blt t0, s3, init_result_table
     
-    # PHASE 5: Bottom-up multiplication using computed S table
-    li s7, 2         # l = 2 (chain length)
+    # PHASE 3: Bottom-up multiplication using S table
+    li s7, 2         # l = 2
     
 multiply_length_loop:
     li s8, 0         # i = 0
@@ -223,14 +210,13 @@ multiply_i_loop:
     lw t3, 0(t3)     # cols_right = cols[j]
     
     # Call matrix multiplication
-    # multiply_two_matrices(rows_left, cols_left, cols_right, left_matrix, right_matrix)
     mv a0, t1        # rows_left
     mv a1, t2        # cols_left
     mv a2, t3        # cols_right
     mv a3, s11       # left_matrix
     mv a4, t0        # right_matrix
     
-    # Save loop variables before function call
+    # Save registers before function call
     addi sp, sp, -32
     sw s7, 28(sp)
     sw s8, 24(sp)
@@ -243,7 +229,7 @@ multiply_i_loop:
     
     call multiply_two_matrices
     
-    # Restore loop variables
+    # Restore registers
     lw t2, 0(sp)
     lw t1, 4(sp)
     lw t0, 8(sp)
@@ -271,17 +257,14 @@ multiply_i_loop:
     addi s7, s7, 1   # l++
     ble s7, s3, multiply_length_loop
     
-    # PHASE 6: Get final result and cleanup
-    # Final result is in result[0][count-1]
+    # Get final result: result[0][count-1]
     addi t0, s3, -1  # count - 1
     slli t0, t0, 2   # * 4
     add t0, s6, t0   # &result[0][count-1]
     lw t1, 0(t0)     # final result matrix
     
     # Free allocated memory
-    mv a0, s4        # free M table
-    call free
-    mv a0, s5        # free S table
+    mv a0, s4        # free M+S table
     call free
     mv a0, s6        # free result table
     call free
@@ -290,9 +273,6 @@ multiply_i_loop:
     mv a0, t1
     j epilogue
 
-single_matrix_case:
-    # For single matrix, just return the matrix itself
-    lw a0, 0(s0)     # matrices[0]
 
 epilogue:
     # Restore registers and return
@@ -312,9 +292,7 @@ epilogue:
     addi sp, sp, 64
     jr ra
 
-# Helper function: multiply_two_matrices
-# Input: a0=rows_left, a1=cols_left, a2=cols_right, a3=left_matrix, a4=right_matrix
-# Output: a0=result_matrix
+# OPTIMIZATION 3: Streamlined matrix multiplication
 multiply_two_matrices:
     # Prologue
     addi sp, sp, -32
@@ -328,7 +306,7 @@ multiply_two_matrices:
     sw s6, 0(sp)
     
     mv s0, a0        # rows_left
-    mv s1, a1        # cols_left (also rows_right)
+    mv s1, a1        # cols_left
     mv s2, a2        # cols_right
     mv s3, a3        # left_matrix
     mv s4, a4        # right_matrix
@@ -340,7 +318,7 @@ multiply_two_matrices:
     call malloc
     mv s5, a0        # s5 = result_matrix
     
-    # Triple nested loop: C[i][j] = Σ(A[i][k] * B[k][j])
+    # Triple nested loop for matrix multiplication
     li t0, 0         # i = 0
     
 mult_i_loop:
