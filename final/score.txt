@@ -20,3 +20,14 @@ L1ICache Size: 4096
 L2Cache Size: 4096
 Test Case 5 Execution Time: 2581010 ns
 Score: 74849290.0
+====================
+gem5_args.conf:
+GEM5_ARGS = --l1i_size 4kB --l1i_assoc 16 --l1d_size 2kB --l1d_assoc 16 --l2_size 4kB --l2_assoc 16
+score_public output:
+Scoring with performance testcases
+python3 score.py
+L1DCache Size: 2048
+L1ICache Size: 4096
+L2Cache Size: 4096
+Test Case 5 Execution Time: 2530872 ns
+Score: 73395288.0

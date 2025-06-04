@@ -292,7 +292,7 @@ epilogue:
     addi sp, sp, 64
     jr ra
 
-# OPTIMIZATION 3: Streamlined matrix multiplication
+# OPTIMIZATION 3: Optimized matrix multiplication with reduced instruction overhead
 multiply_two_matrices:
     # Prologue
     addi sp, sp, -32
@@ -318,49 +318,56 @@ multiply_two_matrices:
     call malloc
     mv s5, a0        # s5 = result_matrix
     
+    # Cache row size calculations to reduce multiplications
+    slli s6, s2, 2   # cols_right * 4 (for B row stride)
+    
     # Triple nested loop for matrix multiplication
     li t0, 0         # i = 0
+    mv t6, s3        # current A row pointer = left_matrix
     
 mult_i_loop:
     li t1, 0         # j = 0
+    mv t5, s5        # result row start
+    mul a0, t0, s2   # i * cols_right
+    slli a0, a0, 2   # * 4
+    add t5, s5, a0   # &result[i][0]
     
 mult_j_loop:
     li t2, 0         # k = 0
-    li s6, 0         # sum = 0
+    li a1, 0         # sum = 0
+    mv a2, t6        # A row pointer
+    mv a3, s4        # B start
+    slli a0, t1, 2   # j * 4
+    add a3, s4, a0   # &B[0][j]
     
 mult_k_loop:
-    # Calculate A[i][k] address and load value
-    mul t3, t0, s1   # i * cols_left
-    add t3, t3, t2   # i * cols_left + k
-    slli t3, t3, 2   # * 4
-    add t3, s3, t3   # left_matrix + offset
-    lw t4, 0(t3)     # A[i][k]
+    # Load A[i][k] - use row pointer
+    lw a4, 0(a2)     # A[i][k]
+    addi a2, a2, 4   # advance A pointer
     
-    # Calculate B[k][j] address and load value
-    mul t3, t2, s2   # k * cols_right
-    add t3, t3, t1   # k * cols_right + j
-    slli t3, t3, 2   # * 4
-    add t3, s4, t3   # right_matrix + offset
-    lw t5, 0(t3)     # B[k][j]
+    # Load B[k][j] - use column pointer  
+    lw a5, 0(a3)     # B[k][j]
+    add a3, a3, s6   # advance B pointer by row stride (cols_right * 4)
     
     # Multiply and accumulate: sum += A[i][k] * B[k][j]
-    mul t6, t4, t5   # A[i][k] * B[k][j]
-    add s6, s6, t6   # sum += product
+    mul a6, a4, a5   # A[i][k] * B[k][j]
+    add a1, a1, a6   # sum += product
     
     # Continue k loop
     addi t2, t2, 1   # k++
     blt t2, s1, mult_k_loop
     
     # Store C[i][j] = sum
-    mul t3, t0, s2   # i * cols_right
-    add t3, t3, t1   # i * cols_right + j
-    slli t3, t3, 2   # * 4
-    add t3, s5, t3   # result_matrix + offset
-    sw s6, 0(t3)     # C[i][j] = sum
+    sw a1, 0(t5)     # result[i][j] = sum
+    addi t5, t5, 4   # advance result pointer
     
     # Continue j loop
     addi t1, t1, 1   # j++
     blt t1, s2, mult_j_loop
+    
+    # Advance to next A row
+    slli a0, s1, 2   # cols_left * 4 
+    add t6, t6, a0   # advance A row pointer
     
     # Continue i loop
     addi t0, t0, 1   # i++
