@@ -307,14 +307,15 @@ multiply_two_matrices:
     slli t0, t0, 2   # * 4 bytes
     mv a0, t0
     call malloc
-    mv a7, a0        # a7 = result_matrix (use argument register)
+    mv a7, a0        # a7 = result_matrix
     
-    # Cache row size calculations to reduce multiplications
-    slli t5, s2, 2   # cols_right * 4 (for B row stride)
+    # Pre-calculate constants to eliminate inner loop calculations
+    slli t5, s2, 2   # cols_right * 4 (B row stride)
+    slli t3, s1, 2   # cols_left * 4 (A row stride)
     
     # Triple nested loop for matrix multiplication
     li t0, 0         # i = 0
-    mv t6, s3        # current A row pointer = left_matrix
+    mv t6, s3        # current A row pointer
     
 mult_i_loop:
     li t1, 0         # j = 0
@@ -347,9 +348,8 @@ mult_k_loop:
     addi t1, t1, 1   # j++
     blt t1, s2, mult_j_loop
     
-    # Advance to next A row
-    slli a0, s1, 2   # cols_left * 4 
-    add t6, t6, a0   # advance A row pointer
+    # Advance to next A row using pre-calculated stride
+    add t6, t6, t3   # advance A row pointer
     
     # Continue i loop
     addi t0, t0, 1   # i++
