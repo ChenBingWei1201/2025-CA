@@ -81,14 +81,17 @@ for_i:
 for_k:
     # Calculate cost: M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
 
-    # Get M[i][k]
-    mul t0, s7, s3   # i * count
-    add t0, t0, s11  # i * count + k
-    slli t0, t0, 2   # * 4
-    add t0, s4, t0   # &M[i][k]
+    # Optimize M table access with base address
+    mul t0, s7, s3   # i * count (base for row)
+    slli t4, t0, 2   # (i * count) * 4
+    add t4, s4, t4   # &M[i][0] - row base
+    
+    # Get M[i][k] using row base
+    slli t0, s11, 2  # k * 4
+    add t0, t4, t0   # &M[i][k]
     lw t1, 0(t0)     # t1 = M[i][k]
     
-    # Get M[k+1][j]
+    # Get M[k+1][j] 
     addi t2, s11, 1  # k + 1
     mul t0, t2, s3   # (k+1) * count
     add t0, t0, s8   # (k+1) * count + j
@@ -341,17 +344,17 @@ mult_j_loop:
     add a3, s4, a0   # &B[0][j]
     
 mult_k_loop:
-    # Load A[i][k] - use row pointer
+    # Load A[i][k] and B[k][j] 
     lw a4, 0(a2)     # A[i][k]
-    addi a2, a2, 4   # advance A pointer
-    
-    # Load B[k][j] - use column pointer  
     lw a5, 0(a3)     # B[k][j]
-    add a3, a3, s6   # advance B pointer by row stride (cols_right * 4)
     
-    # Multiply and accumulate: sum += A[i][k] * B[k][j]
+    # Multiply and accumulate in one step
     mul a6, a4, a5   # A[i][k] * B[k][j]
     add a1, a1, a6   # sum += product
+    
+    # Advance pointers
+    addi a2, a2, 4   # advance A pointer
+    add a3, a3, s6   # advance B pointer by row stride
     
     # Continue k loop
     addi t2, t2, 1   # k++
