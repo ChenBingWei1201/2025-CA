@@ -2,21 +2,20 @@
 .global matrix_chain_multiplication
 
 matrix_chain_multiplication:
-    # Prologue - save registers and allocate stack space
-    addi sp, sp, -64
-    sw ra, 60(sp)
-    sw s0, 56(sp)
-    sw s1, 52(sp)
-    sw s2, 48(sp)
-    sw s3, 44(sp)
-    sw s4, 40(sp)
-    sw s5, 36(sp)
-    sw s6, 32(sp)
-    sw s7, 28(sp)
-    sw s8, 24(sp)
-    sw s9, 20(sp)
-    sw s10, 16(sp)
-    sw s11, 12(sp)
+    # Prologue - minimized register saves
+    addi sp, sp, -48
+    sw ra, 44(sp)
+    sw s0, 40(sp)
+    sw s1, 36(sp)
+    sw s2, 32(sp)
+    sw s3, 28(sp)
+    sw s4, 24(sp)
+    sw s5, 20(sp)
+    sw s6, 16(sp)
+    sw s7, 12(sp)
+    sw s8, 8(sp)
+    sw s9, 4(sp)
+    sw s10, 0(sp)
     
     # Save input parameters
     mv s0, a0        # matrices
@@ -115,13 +114,13 @@ for_k:
     add t0, a0, t0   # &M[i][j] (reuse row base a0)
     lw t1, 0(t0)     # current M[i][j]
     
-    # If new cost is better, update
+    # If new cost is better, update both M and S tables
     bge t4, t1, skip_update
     
     # Update M[i][j]
     sw t4, 0(t0)
     
-    # Update S[i][j]
+    # Update S[i][j] - optimized offset calculation
     sub t0, t0, s4   # offset from M table
     add t0, s5, t0   # &S[i][j]
     sw s11, 0(t0)    # S[i][j] = k
@@ -271,34 +270,31 @@ multiply_i_loop:
 
 epilogue:
     # Restore registers and return
-    lw s11, 12(sp)
-    lw s10, 16(sp)
-    lw s9, 20(sp)
-    lw s8, 24(sp)
-    lw s7, 28(sp)
-    lw s6, 32(sp)
-    lw s5, 36(sp)
-    lw s4, 40(sp)
-    lw s3, 44(sp)
-    lw s2, 48(sp)
-    lw s1, 52(sp)
-    lw s0, 56(sp)
-    lw ra, 60(sp)
-    addi sp, sp, 64
+    lw s10, 0(sp)
+    lw s9, 4(sp)
+    lw s8, 8(sp)
+    lw s7, 12(sp)
+    lw s6, 16(sp)
+    lw s5, 20(sp)
+    lw s4, 24(sp)
+    lw s3, 28(sp)
+    lw s2, 32(sp)
+    lw s1, 36(sp)
+    lw s0, 40(sp)
+    lw ra, 44(sp)
+    addi sp, sp, 48
     jr ra
 
 # OPTIMIZATION 3: Optimized matrix multiplication with reduced instruction overhead
 multiply_two_matrices:
-    # Prologue
-    addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    sw s2, 16(sp)
-    sw s3, 12(sp)
-    sw s4, 8(sp)
-    sw s5, 4(sp)
-    sw s6, 0(sp)
+    # Prologue - minimize register saves
+    addi sp, sp, -24
+    sw ra, 20(sp)
+    sw s0, 16(sp)
+    sw s1, 12(sp)
+    sw s2, 8(sp)
+    sw s3, 4(sp)
+    sw s4, 0(sp)
     
     mv s0, a0        # rows_left
     mv s1, a1        # cols_left
@@ -311,10 +307,10 @@ multiply_two_matrices:
     slli t0, t0, 2   # * 4 bytes
     mv a0, t0
     call malloc
-    mv s5, a0        # s5 = result_matrix
+    mv a7, a0        # a7 = result_matrix (use argument register)
     
     # Cache row size calculations to reduce multiplications
-    slli s6, s2, 2   # cols_right * 4 (for B row stride)
+    slli t5, s2, 2   # cols_right * 4 (for B row stride)
     
     # Triple nested loop for matrix multiplication
     li t0, 0         # i = 0
@@ -324,35 +320,28 @@ mult_i_loop:
     li t1, 0         # j = 0
     mul a0, t0, s2   # i * cols_right
     slli a0, a0, 2   # * 4
-    add t5, s5, a0   # &result[i][0]
+    add t4, a7, a0   # &result[i][0]
     
 mult_j_loop:
-    li t2, 0         # k = 0
+    mv t2, s1        # k = cols_left
     li a1, 0         # sum = 0
     mv a2, t6        # A row pointer
     slli a0, t1, 2   # j * 4
     add a3, s4, a0   # &B[0][j]
     
 mult_k_loop:
-    # Load A[i][k] and B[k][j] 
     lw a4, 0(a2)     # A[i][k]
     lw a5, 0(a3)     # B[k][j]
-    
-    # Multiply and accumulate in one step
+    addi a2, a2, 4   # advance A pointer
+    add a3, a3, t5   # advance B pointer
     mul a6, a4, a5   # A[i][k] * B[k][j]
     add a1, a1, a6   # sum += product
+    addi t2, t2, -1  # k--
+    bnez t2, mult_k_loop
     
-    # Advance pointers
-    addi a2, a2, 4   # advance A pointer
-    add a3, a3, s6   # advance B pointer by row stride
-    
-    # Continue k loop
-    addi t2, t2, 1   # k++
-    blt t2, s1, mult_k_loop
-    
-    # Store C[i][j] = sum
-    sw a1, 0(t5)     # result[i][j] = sum
-    addi t5, t5, 4   # advance result pointer
+    # Store C[i][j] = sum and advance pointer in one step
+    sw a1, 0(t4)     # result[i][j] = sum
+    addi t4, t4, 4   # advance result pointer
     
     # Continue j loop
     addi t1, t1, 1   # j++
@@ -367,16 +356,14 @@ mult_k_loop:
     blt t0, s0, mult_i_loop
     
     # Return result matrix
-    mv a0, s5
+    mv a0, a7
     
     # Epilogue
-    lw s6, 0(sp)
-    lw s5, 4(sp)
-    lw s4, 8(sp)
-    lw s3, 12(sp)
-    lw s2, 16(sp)
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
-    addi sp, sp, 32
+    lw s4, 0(sp)
+    lw s3, 4(sp)
+    lw s2, 8(sp)
+    lw s1, 12(sp)
+    lw s0, 16(sp)
+    lw ra, 20(sp)
+    addi sp, sp, 24
     jr ra
