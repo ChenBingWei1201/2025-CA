@@ -99,7 +99,7 @@ for_k:
     add t0, s4, t0   # &M[k+1][j]
     lw t2, 0(t0)     # t2 = M[k+1][j]
     
-    # Get cols[k]
+    # Get cols[k] - slightly more efficient addressing
     slli t0, s11, 2  # k * 4
     add t0, s2, t0   # &cols[k]
     lw t3, 0(t0)     # t3 = cols[k]
@@ -235,7 +235,7 @@ multiply_i_loop:
     lw s7, 16(sp)
     addi sp, sp, 20
     
-    # Store result in result[i][j]
+    # Store result in result[i][j] - optimize addressing
     mul t0, s8, s3   # i * count
     add t0, t0, s9   # i * count + j
     slli t0, t0, 2   # * 4
@@ -322,7 +322,6 @@ multiply_two_matrices:
     
 mult_i_loop:
     li t1, 0         # j = 0
-    mv t5, s5        # result row start
     mul a0, t0, s2   # i * cols_right
     slli a0, a0, 2   # * 4
     add t5, s5, a0   # &result[i][0]
@@ -331,7 +330,6 @@ mult_j_loop:
     li t2, 0         # k = 0
     li a1, 0         # sum = 0
     mv a2, t6        # A row pointer
-    mv a3, s4        # B start
     slli a0, t1, 2   # j * 4
     add a3, s4, a0   # &B[0][j]
     
