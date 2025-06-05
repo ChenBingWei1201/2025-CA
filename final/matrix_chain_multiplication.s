@@ -83,12 +83,12 @@ for_k:
 
     # Optimize M table access with base address
     mul t0, s7, s3   # i * count (base for row)
-    slli t4, t0, 2   # (i * count) * 4
-    add t4, s4, t4   # &M[i][0] - row base
+    slli a0, t0, 2   # (i * count) * 4
+    add a0, s4, a0   # &M[i][0] - row base
     
     # Get M[i][k] using row base
     slli t0, s11, 2  # k * 4
-    add t0, t4, t0   # &M[i][k]
+    add t0, a0, t0   # &M[i][k]
     lw t1, 0(t0)     # t1 = M[i][k]
     
     # Get M[k+1][j] 
@@ -110,11 +110,9 @@ for_k:
     add t4, t4, t1   # + M[i][k]
     add t4, t4, t2   # + M[k+1][j]
     
-    # Compare with current M[i][j]
-    mul t0, s7, s3   # i * count
-    add t0, t0, s8   # i * count + j
-    slli t0, t0, 2   # * 4
-    add t0, s4, t0   # &M[i][j]
+    # Compare with current M[i][j] - reuse row base from earlier
+    slli t0, s8, 2   # j * 4
+    add t0, a0, t0   # &M[i][j] (reuse row base a0)
     lw t1, 0(t0)     # current M[i][j]
     
     # If new cost is better, update
@@ -219,29 +217,23 @@ multiply_i_loop:
     mv a3, s11       # left_matrix
     mv a4, t0        # right_matrix
     
-    # Save registers before function call
-    addi sp, sp, -32
-    sw s7, 28(sp)
-    sw s8, 24(sp)
-    sw s9, 20(sp)
-    sw s10, 16(sp)
-    sw s11, 12(sp)
-    sw t0, 8(sp)
-    sw t1, 4(sp)
-    sw t2, 0(sp)
+    # Save only essential registers - reduce stack overhead
+    addi sp, sp, -20
+    sw s7, 16(sp)
+    sw s8, 12(sp)
+    sw s9, 8(sp)
+    sw s10, 4(sp)
+    sw s11, 0(sp)
     
     call multiply_two_matrices
     
     # Restore registers
-    lw t2, 0(sp)
-    lw t1, 4(sp)
-    lw t0, 8(sp)
-    lw s11, 12(sp)
-    lw s10, 16(sp)
-    lw s9, 20(sp)
-    lw s8, 24(sp)
-    lw s7, 28(sp)
-    addi sp, sp, 32
+    lw s11, 0(sp)
+    lw s10, 4(sp)
+    lw s9, 8(sp)
+    lw s8, 12(sp)
+    lw s7, 16(sp)
+    addi sp, sp, 20
     
     # Store result in result[i][j]
     mul t0, s8, s3   # i * count
