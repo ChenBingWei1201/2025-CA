@@ -7,49 +7,16 @@ python3 score.py
 L1DCache Size: 2048
 L1ICache Size: 4096
 L2Cache Size: 4096
-Test Case 5 Execution Time: 2619039 ns
-Score: 75952131.0
+Test Case 5 Execution Time: 2456457 ns
+Score: 71237253.0
 ====================
 gem5_args.conf:
-GEM5_ARGS = --l1i_size 4kB --l1i_assoc 16 --l1d_size 2kB --l1d_assoc 16 --l2_size 4kB --l2_assoc 16
+GEM5_ARGS = --l1i_size 4kB --l1i_assoc 64 --l1d_size 4kB --l1d_assoc 64 --l2_size 1kB --l2_assoc 16
 score_public output:
 Scoring with performance testcases
 python3 score.py
-L1DCache Size: 2048
+L1DCache Size: 4096
 L1ICache Size: 4096
-L2Cache Size: 4096
-Test Case 5 Execution Time: 2581010 ns
-Score: 74849290.0
-====================
-gem5_args.conf:
-GEM5_ARGS = --l1i_size 4kB --l1i_assoc 16 --l1d_size 2kB --l1d_assoc 16 --l2_size 4kB --l2_assoc 16
-score_public output:
-Scoring with performance testcases
-python3 score.py
-L1DCache Size: 2048
-L1ICache Size: 4096
-L2Cache Size: 4096
-Test Case 5 Execution Time: 2530872 ns
-Score: 73395288.0
-====================
-gem5_args.conf:
-GEM5_ARGS = --l1i_size 4kB --l1i_assoc 16 --l1d_size 2kB --l1d_assoc 16 --l2_size 4kB --l2_assoc 16
-score_public output:
-Scoring with performance testcases
-python3 score.py
-L1DCache Size: 2048
-L1ICache Size: 4096
-L2Cache Size: 4096
-Test Case 5 Execution Time: 2581010 ns
-Score: 74849290.0
-====================
-gem5_args.conf:
-GEM5_ARGS = --l1i_size 4kB --l1i_assoc 16 --l1d_size 2kB --l1d_assoc 16 --l2_size 4kB --l2_assoc 16
-score_public output:
-Scoring with performance testcases
-python3 score.py
-L1DCache Size: 2048
-L1ICache Size: 4096
-L2Cache Size: 4096
-Test Case 5 Execution Time: 2465038 ns
-Score: 71486102.0
+L2Cache Size: 1024
+Test Case 5 Execution Time: 2403112 ns
+Score: 69690248.0
