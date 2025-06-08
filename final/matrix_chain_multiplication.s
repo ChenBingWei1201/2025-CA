@@ -48,82 +48,92 @@ init_diagonal:
     
     # Main DP loop
     li s6, 2         # l = 2 (chain length)
+    slli a7,s3,2
     
 for_l:
     li s7, 0         # i = 0
+
+    # Calculate j = i + l - 1
+    addi s8, s6,-1   # j0 = i + l - 1 = l - 1    # end i_loop with i++ and j++
+    
+    # for_i boundary
+    sub  a4, s3, s6   # count - l
+    addi a4, a4, 1   # count - l + 1
     
 for_i:
-    # Calculate j = i + l - 1
-    add s8, s7, s6   # i + l
-    addi s8, s8, -1  # j = i + l - 1
-    
     # Initialize M[i][j] to infinity
     li t0, 0x7FFFFFFF
     mul t1, s7, s3   # i * count
-    add t1, t1, s8   # i * count + j
-    slli t1, t1, 2   # * 4
-    add t1, s4, t1   # &M[i][j]
-    sw t0, 0(t1)     # M[i][j] = infinity
+    add t5, t1, s8   # i * count + j
+    slli t5, t5, 2   # * 4
+    add t6, s5, t5   # &S[i][j] stored in t6
+    add t5, s4, t5   # &M[i][j] stored in t5
+    sw t0, 0(t5)     # M[i][j] = infinity
     
-    # OPTIMIZATION 2: Cache dimension values
+    # Try all split points k = i to j-1
+    addi s11, s7,-1       # k-1 = i-1
+    
+    # &M[i][k] stored in a5
+    add  t0, t1, s11 # i * count +k
+    slli t0, t0, 2   # * 4
+    add  a5, s4, t0  # &M[i][k]
+    
+    # OPTIMIZATION 2: Cache dimension values   (s10= cols[j]*rows[i])
     slli t1, s7, 2   # i * 4
     add t1, s1, t1   # &rows[i]
-    lw s9, 0(t1)     # s9 = rows[i] (cache for k loop)
+    lw s9, 0(t1)     # rows[i] (cache for k loop)
     
     slli t1, s8, 2   # j * 4
     add t1, s2, t1   # &cols[j]
     lw s10, 0(t1)    # s10 = cols[j] (cache for k loop)
     
-    # Try all split points k = i to j-1
+    mul s10,s10,s9   # cols[j]*rows[i]
+    
+    
+    # s9 = &cols[k]
+    slli s9, s11, 2  # k * 4
+    add s9, s2, s9   # &cols[k]
+    
+
+    # &M[k+1][j] stored in a6
     mv s11, s7       # k = i
     
+    mul t0, s11, s3   # (k+1) * count
+    add t0, t0, s8   # (k+1) * count + j
+    slli t0, t0, 2   # * 4
+    add a6, s4, t0   # &M[k+1][j]
+
 for_k:
     # Calculate cost: M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
 
-    # Optimize M table access with base address
-    mul t0, s7, s3   # i * count (base for row)
-    slli a0, t0, 2   # (i * count) * 4
-    add a0, s4, a0   # &M[i][0] - row base
+    # Get M[i][k]
+    addi a5,a5,4
+    lw t1, 0(a5)     # t1 = M[i][k]
     
-    # Get M[i][k] using row base
-    slli t0, s11, 2  # k * 4
-    add t0, a0, t0   # &M[i][k]
-    lw t1, 0(t0)     # t1 = M[i][k]
+    # Get M[k+1][j]
+    add  a6,a6,a7
+    lw t2, 0(a6)     # t2 = M[k+1][j]
     
-    # Get M[k+1][j] 
-    addi t2, s11, 1  # k + 1
-    mul t0, t2, s3   # (k+1) * count
-    add t0, t0, s8   # (k+1) * count + j
-    slli t0, t0, 2   # * 4
-    add t0, s4, t0   # &M[k+1][j]
-    lw t2, 0(t0)     # t2 = M[k+1][j]
+    # Get cols[k]
+    addi s9,s9,4
+    lw t3, 0(s9)     # t3 = cols[k]
     
-    # Get cols[k] - slightly more efficient addressing
-    slli t0, s11, 2  # k * 4
-    add t0, s2, t0   # &cols[k]
-    lw t3, 0(t0)     # t3 = cols[k]
+    # Compare with current M[i][j]
+    lw t0, 0(t5)     # current M[i][j]
     
     # Calculate cost: M[i][k] + M[k+1][j] + rows[i] * cols[k] * cols[j]
-    mul t4, s9, t3   # rows[i] * cols[k] (using cached rows[i])
-    mul t4, t4, s10  # rows[i] * cols[k] * cols[j] (using cached cols[j])
+    mul t4, s10, t3  # rows[i] * cols[k] * cols[j] (using cached cols[j])
     add t4, t4, t1   # + M[i][k]
     add t4, t4, t2   # + M[k+1][j]
     
-    # Compare with current M[i][j] - reuse row base from earlier
-    slli t0, s8, 2   # j * 4
-    add t0, a0, t0   # &M[i][j] (reuse row base a0)
-    lw t1, 0(t0)     # current M[i][j]
-    
-    # If new cost is better, update both M and S tables
-    bge t4, t1, skip_update
+    # If new cost is better, update
+    bge t4, t0, skip_update
     
     # Update M[i][j]
-    sw t4, 0(t0)
+    sw t4, 0(t5)
     
-    # Update S[i][j] - optimized offset calculation
-    sub t0, t0, s4   # offset from M table
-    add t0, s5, t0   # &S[i][j]
-    sw s11, 0(t0)    # S[i][j] = k
+    # Update S[i][j]
+    sw s11, 0(t6)    # S[i][j] = k
     
 skip_update:
     addi s11, s11, 1 # k++
@@ -131,9 +141,8 @@ skip_update:
     
     # Continue i loop
     addi s7, s7, 1   # i++
-    sub t0, s3, s6   # count - l
-    addi t0, t0, 1   # count - l + 1
-    blt s7, t0, for_i
+    addi s8, s8, 1   # j++
+    blt s7, a4, for_i
     
     # Continue length loop
     addi s6, s6, 1   # l++

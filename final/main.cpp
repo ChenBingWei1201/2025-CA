@@ -256,14 +256,14 @@ int main(int argc, char *argv[])
     close(out_fd);
 
     // Free all allocated memory.
-    free(result);
-    for (int i = 0; i < count; i++)
-    {
-        free(matrices[i]);
-    }
-    free(matrices);
-    free(rows_arr);
-    free(cols_arr);
+    // free(result);
+    // for (int i = 0; i < count; i++)
+    // {
+    //     free(matrices[i]);
+    // }
+    // free(matrices);
+    // free(rows_arr);
+    // free(cols_arr);
 
     return 0;
 }
